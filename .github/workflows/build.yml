@@ -1,50 +1,52 @@
-name: Build AyuGram Windows
+name: Build AyuGram Neon UI
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # Позволяет запустить сборку вручную кнопкой
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-    - name: Checkout code
+    - name: Checkout Neon patch repo
       uses: actions/checkout@v4
       with:
-        submodules: recursive
-        fetch-depth: 0
+        path: neon
 
-    - name: Setup MSVC (Visual Studio)
-      uses: ilammy/msvc-dev-cmd@v1
+    - name: Clone official AyuGram v7.2.9 with submodules
+      run: git clone --recursive --shallow-submodules --depth 1 --branch v7.2.9 https://github.com/AyuGram/AyuGramDesktop.git src
+
+    - name: Apply Neon UI changes
+      shell: pwsh
+      run: |
+        Copy-Item -Force neon/Telegram/SourceFiles/window/window.style src/Telegram/SourceFiles/window/window.style
+        Copy-Item -Force neon/Telegram/SourceFiles/dialogs/ui/dialogs_layout.cpp src/Telegram/SourceFiles/dialogs/ui/dialogs_layout.cpp
+        Copy-Item -Force neon/Telegram/SourceFiles/dialogs/dialogs.style src/Telegram/SourceFiles/dialogs/dialogs.style
+        Copy-Item -Force neon/Telegram/SourceFiles/ui/chat/chat.style src/Telegram/SourceFiles/ui/chat/chat.style
 
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Install build tools
-      run: |
-        python -m pip install --upgrade pip
-        pip install cmake ninja
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Prepare libraries
-      run: |
-        cd Telegram
-        python build/prepare/prepare.py
+    - name: Prepare libraries (Qt, vcpkg, ffmpeg...)
+      working-directory: src/Telegram
+      run: python build/prepare/prepare.py
 
     - name: Configure project
-      run: |
-        cd Telegram
-        python configure.py
+      working-directory: src/Telegram
+      run: cmd /c configure.bat x64 -D TDESKTOP_API_ID=2040 -D TDESKTOP_API_HASH=b18441a1ff607e10a989891a5462e627
 
     - name: Build Release
-      run: |
-        cmake --build out --target Telegram --config Release -j 4
+      run: cmake --build src/out --config Release -j 3
 
-    - name: Upload Artifact (Готовый файл)
+    - name: Upload artifact (готовый клиент)
       uses: actions/upload-artifact@v4
       with:
-        name: AyuGram-Windows-Release
-        path: out/Release/Telegram.exe
-        retention-days: 7
+        name: AyuGram-Neon-UI
+        path: src/out/Release/
+        retention-days: 14
