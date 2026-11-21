@@ -17,7 +17,7 @@ jobs:
     - name: Clone official AyuGram v7.2.9 with submodules
       run: git clone --recursive --shallow-submodules --depth 1 --branch v7.2.9 https://github.com/AyuGram/AyuGramDesktop.git src
 
-    - name: Patch prepare.py (fix MSYS2 packages + replace jom with nmake)
+    - name: Patch prepare.py (fix MSYS2, jom, and dav1d)
       shell: pwsh
       run: |
         $file = "src/Telegram/build/prepare/prepare.py"
@@ -27,16 +27,23 @@ jobs:
         $content = $content -replace 'mingw-w64-x86_64-diffutils', 'diffutils'
         
         # 2. Заменяем jom на nmake и убираем аргументы параллелизма
-        #    Было:  jom -j%NUMBER_OF_PROCESSORS% build_libs
-        #    Стало: nmake build_libs
         $content = $content -replace 'jom\s+-j\S*\s+', 'nmake '
         $content = $content -replace 'jom\s+', 'nmake '
         
         Set-Content $file $content -NoNewline
-        Write-Host "Patched prepare.py: diffutils fixed, jom -> nmake (no parallel args)"
         
-        # Проверка: покажем строки с nmake
-        Select-String -Path $file -Pattern "nmake|jom" | ForEach-Object { $_.Line }
+        # 3. Fix dav1d __has_include_next MSVC error
+        $lines = Get-Content $file
+        $newLines = @()
+        foreach ($line in $lines) {
+            $newLines += $line
+            if ($line.Trim() -eq "'cd dav1d',") {
+                $newLines += "            'powershell -Command `"(Get-Content include\compat\msvc\stdatomic.h -Raw) -replace ''#if __has_include_next\(<stdatomic\.h>)'', ''#if 0'' | Set-Content include\compat\msvc\stdatomic.h -NoNewline"`","
+            }
+        }
+        $newLines | Set-Content $file -NoNewline
+        
+        Write-Host "Patched prepare.py successfully (diffutils, jom->nmake, dav1d)"
 
     - name: Apply Neon UI changes
       shell: pwsh
