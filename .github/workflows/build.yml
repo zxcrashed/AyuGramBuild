@@ -17,10 +17,10 @@ jobs:
     - name: Clone official AyuGram v7.2.9 with submodules
       run: git clone --recursive --shallow-submodules --depth 1 --branch v7.2.9 https://github.com/AyuGram/AyuGramDesktop.git src
 
-    - name: Patch prepare.py (bulletproof)
+    - name: Patch prepare.py
       shell: pwsh
       run: |
-        $script = @'
+        $pyScript = @'
         import re
 
         with open('src/Telegram/build/prepare/prepare.py', 'r', encoding='utf-8') as f:
@@ -33,22 +33,24 @@ jobs:
         content = re.sub(r'jom\s+-j\S*\s+', 'nmake ', content)
         content = re.sub(r'jom\s+', 'nmake ', content)
 
-        # 3. Fix dav1d __has_include_next error by injecting a native python one-liner
-        # This completely avoids cmd/powershell quote escaping hell
+        # 3. Fix dav1d __has_include_next error
         pattern = re.compile(r"^(\s*)'cd dav1d',$", re.MULTILINE)
         def replacer(match):
             indent = match.group(1)
-            return f"""{indent}'cd dav1d',
-{indent}'python -c "import re; f=\\'include/compat/msvc/stdatomic.h\\'; open(f, \\'w\\').write(re.sub(r\\'#if __has_include_next\\\\s*\\\\(\\\\s*<stdatomic\\\\.h>\\\\s*\\\\)\\', \\'#if 0\\', open(f).read()))",
-"""
+            # Используем одинарные кавычки внутри, а внешние будут двойными для python -c
+            py_fix = "import re; f='include/compat/msvc/stdatomic.h'; open(f, 'w').write(re.sub(r'#if __has_include_next\\s*\\(\\s*<stdatomic\\.h>\\s*\\)', '#if 0', open(f).read()))"
+            return f"{indent}'cd dav1d',\n{indent}'python -c \"{py_fix}\","
+
         content = pattern.sub(replacer, content)
 
         with open('src/Telegram/build/prepare/prepare.py', 'w', encoding='utf-8') as f:
             f.write(content)
 
-        print('Patched prepare.py successfully (diffutils, jom->nmake, dav1d)')
+        print('Patched prepare.py successfully')
         '@
-        python -c $script
+        
+        Set-Content -Path "patch.py" -Value $pyScript -Encoding UTF8
+        python patch.py
 
     - name: Apply Neon UI changes
       shell: pwsh
