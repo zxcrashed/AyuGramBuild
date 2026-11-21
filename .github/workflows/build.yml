@@ -26,17 +26,16 @@ jobs:
         # 1. Фикс устаревшего пакета diffutils
         $content = $content -replace 'mingw-w64-x86_64-diffutils', 'diffutils'
         
-        # 2. Заменяем jom на nmake (nmake уже есть в MSVC)
+        # 2. Заменяем jom на nmake и убираем аргументы параллелизма
         #    Было:  jom -j%NUMBER_OF_PROCESSORS% build_libs
-        #    Стало: nmake /J%NUMBER_OF_PROCESSORS% build_libs
-        $content = $content -replace 'jom -j%NUMBER_OF_PROCESSORS%', 'nmake /J%NUMBER_OF_PROCESSORS%'
-        $content = $content -replace 'jom clean', 'nmake clean'
-        $content = $content -replace 'jom ', 'nmake '
+        #    Стало: nmake build_libs
+        $content = $content -replace 'jom\s+-j\S*\s+', 'nmake '
+        $content = $content -replace 'jom\s+', 'nmake '
         
         Set-Content $file $content -NoNewline
-        Write-Host "Patched prepare.py: diffutils fixed, jom -> nmake"
+        Write-Host "Patched prepare.py: diffutils fixed, jom -> nmake (no parallel args)"
         
-        # Проверка: покажем, что получилось
+        # Проверка: покажем строки с nmake
         Select-String -Path $file -Pattern "nmake|jom" | ForEach-Object { $_.Line }
 
     - name: Apply Neon UI changes
