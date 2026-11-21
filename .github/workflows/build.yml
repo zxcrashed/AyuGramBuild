@@ -1,0 +1,50 @@
+name: Build AyuGram Windows
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Позволяет запустить сборку вручную кнопкой
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Setup MSVC (Visual Studio)
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install build tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install cmake ninja
+
+    - name: Prepare libraries
+      run: |
+        cd Telegram
+        python build/prepare/prepare.py
+
+    - name: Configure project
+      run: |
+        cd Telegram
+        python configure.py
+
+    - name: Build Release
+      run: |
+        cmake --build out --target Telegram --config Release -j 4
+
+    - name: Upload Artifact (Готовый файл)
+      uses: actions/upload-artifact@v4
+      with:
+        name: AyuGram-Windows-Release
+        path: out/Release/Telegram.exe
+        retention-days: 7
