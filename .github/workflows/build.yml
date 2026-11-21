@@ -17,6 +17,18 @@ jobs:
     - name: Clone official AyuGram v7.2.9 with submodules
       run: git clone --recursive --shallow-submodules --depth 1 --branch v7.2.9 https://github.com/AyuGram/AyuGramDesktop.git src
 
+    - name: Patch prepare.py (fix outdated MSYS2 packages)
+      shell: pwsh
+      run: |
+        $file = "src/Telegram/build/prepare/prepare.py"
+        $content = Get-Content $file -Raw
+        # Заменяем устаревший пакет diffutils
+        $content = $content -replace 'mingw-w64-x86_64-diffutils', 'diffutils'
+        # На всякий случай — gperf тоже мог устареть
+        $content = $content -replace 'mingw-w64-x86_64-gperf', 'mingw-w64-x86_64-gperf'
+        Set-Content $file $content -NoNewline
+        Write-Host "Patched prepare.py"
+
     - name: Apply Neon UI changes
       shell: pwsh
       run: |
