@@ -33,18 +33,20 @@ jobs:
         content = re.sub(r'jom\s+-j\S*\s+', 'nmake ', content)
         content = re.sub(r'jom\s+', 'nmake ', content)
 
-        # 3. Fix dav1d __has_include_next error by injecting a PowerShell fix after 'cd dav1d'
-        # Using regex to preserve any indentation (4 spaces, 8 spaces, etc.)
-        old = re.compile(r"(\s+)'cd dav1d',")
-        new = r"""\1'cd dav1d',
-        \1"powershell -Command \\"(Get-Content include/compat/msvc/stdatomic.h -Raw) -replace '#if __has_include_next\\\\(<stdatomic\\\\.h>\\\\)', '#if 0' | Set-Content include/compat/msvc/stdatomic.h -NoNewline\\"",
-        """
-        content = old.sub(new, content)
+        # 3. Fix dav1d __has_include_next error by injecting a native python one-liner
+        # This completely avoids cmd/powershell quote escaping hell
+        pattern = re.compile(r"^(\s*)'cd dav1d',$", re.MULTILINE)
+        def replacer(match):
+            indent = match.group(1)
+            return f"""{indent}'cd dav1d',
+{indent}'python -c "import re; f=\\'include/compat/msvc/stdatomic.h\\'; open(f, \\'w\\').write(re.sub(r\\'#if __has_include_next\\\\s*\\\\(\\\\s*<stdatomic\\\\.h>\\\\s*\\\\)\\', \\'#if 0\\', open(f).read()))",
+"""
+        content = pattern.sub(replacer, content)
 
         with open('src/Telegram/build/prepare/prepare.py', 'w', encoding='utf-8') as f:
             f.write(content)
 
-        print('Patched prepare.py successfully')
+        print('Patched prepare.py successfully (diffutils, jom->nmake, dav1d)')
         '@
         python -c $script
 
