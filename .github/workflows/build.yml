@@ -30,19 +30,18 @@ jobs:
         $content = $content -replace 'jom\s+-j\S*\s+', 'nmake '
         $content = $content -replace 'jom\s+', 'nmake '
         
-        Set-Content $file $content -NoNewline
-        
-        # 3. Fix dav1d __has_include_next MSVC error
-        $lines = Get-Content $file
+        # 3. Fix dav1d __has_include_next MSVC error (исправленный синтаксис Python)
+        $lines = $content -split "`n"
         $newLines = @()
         foreach ($line in $lines) {
             $newLines += $line
             if ($line.Trim() -eq "'cd dav1d',") {
-                $newLines += "            'powershell -Command `"(Get-Content include\compat\msvc\stdatomic.h -Raw) -replace ''#if __has_include_next\(<stdatomic\.h>)'', ''#if 0'' | Set-Content include\compat\msvc\stdatomic.h -NoNewline"`","
+                $newLines += '            "powershell -Command \"(Get-Content include/compat/msvc/stdatomic.h -Raw) -replace ''__has_include_next\s*\(\s*<stdatomic\.h>\s*)'', ''0'' | Set-Content include/compat/msvc/stdatomic.h -NoNewline\"",'
             }
         }
-        $newLines | Set-Content $file -NoNewline
+        $content = $newLines -join "`n"
         
+        Set-Content $file $content -NoNewline
         Write-Host "Patched prepare.py successfully (diffutils, jom->nmake, dav1d)"
 
     - name: Apply Neon UI changes
@@ -63,18 +62,4 @@ jobs:
 
     - name: Prepare libraries (Qt, vcpkg, ffmpeg...)
       working-directory: src/Telegram
-      run: python build/prepare/prepare.py
-
-    - name: Configure project
-      working-directory: src/Telegram
-      run: cmd /c configure.bat x64 -D TDESKTOP_API_ID=2040 -D TDESKTOP_API_HASH=b18441a1ff607e10a989891a5462e627
-
-    - name: Build Release
-      run: cmake --build src/out --config Release -j 3
-
-    - name: Upload artifact (готовый клиент)
-      uses: actions/upload-artifact@v4
-      with:
-        name: AyuGram-Neon-UI
-        path: src/out/Release/
-        retention-days: 14
+      run: python build/prepare/prepare
